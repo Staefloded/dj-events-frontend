@@ -1,23 +1,35 @@
+import { FaImage } from "react-icons/fa";
+import moment from "moment";
 import { useState } from "react";
 import Layout from "@/components/Layout";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import { ToastContainer, toast } from "react-toastify";
+import Link from "next/link";
+import Image from "next/image";
 import "react-toastify/dist/ReactToastify.css";
 import styles from "@/styles/Form.module.css";
 import { API_URL } from "@/config/index";
+import Modal from "@/components/Modal";
+import ImageUpload from "@/components/ImageUpload";
 import { parseCookies } from "@/helpers/index";
 
-const AddEvent = ({ token }) => {
+const EditEventPage = ({ evt, token }) => {
   const [values, setValues] = useState({
-    name: "",
-    description: "",
-    venue: "",
-    address: "",
-    date: "",
-    performers: "",
-    time: "",
+    name: evt.name,
+    description: evt.description,
+    venue: evt.venue,
+    address: evt.address,
+    date: evt.date,
+    performers: evt.performers,
+    time: evt.time,
   });
+
+  const [imagePreview, setImagePreview] = useState(
+    evt.image ? evt.image.formats.thumbnail.url : null
+  );
+
+  const [showModal, setShowModal] = useState(false);
+
   const router = useRouter();
 
   const handleSubmit = async (e) => {
@@ -28,8 +40,8 @@ const AddEvent = ({ token }) => {
       toast.error("Please Fill in all Fields");
     }
 
-    const res = await fetch(`${API_URL}/events`, {
-      method: "POST",
+    const res = await fetch(`${API_URL}/events/${evt.id}`, {
+      method: "PUT",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
@@ -39,7 +51,7 @@ const AddEvent = ({ token }) => {
 
     if (!res.ok) {
       if (res.status === 403 || res.status === 401) {
-        toast.error("No token included");
+        toast.error("Unauthorized");
         return;
       }
       toast.error("Something Went Wrong");
@@ -54,10 +66,17 @@ const AddEvent = ({ token }) => {
     setValues({ ...values, [name]: value });
   };
 
+  const imageUploaded = async () => {
+    const res = await fetch(`${API_URL}/events/${evt.id}`);
+    const data = await res.json();
+    setImagePreview(data.image.formats.thumbnail.url);
+    setShowModal(false);
+  };
+
   return (
-    <Layout title="Add New Event">
+    <Layout title={`Edit ${evt.name}`}>
       <Link href="/events">GO Back</Link>
-      <h1>Add Events</h1>
+      <h1>Edit Events</h1>
       <ToastContainer />
 
       <form onSubmit={handleSubmit} className={styles.form}>
@@ -112,7 +131,7 @@ const AddEvent = ({ token }) => {
               type="date"
               name="date"
               id="date"
-              value={values.date}
+              value={moment(values.date).format("yyyy-MM-DD")}
               onChange={handleInputChange}
             />
           </div>
@@ -140,20 +159,42 @@ const AddEvent = ({ token }) => {
           ></textarea>
         </div>
 
-        <input type="submit" value="Add Event" className="btn" />
+        <input type="submit" value="Update Event" className="btn" />
       </form>
+
+      <h2>Event Image</h2>
+      {imagePreview ? (
+        <Image src={imagePreview} height={100} width={170} />
+      ) : (
+        <div>
+          <p>No Image Uploaded</p>
+        </div>
+      )}
+
+      <div>
+        <button className="btn-secondary" onClick={() => setShowModal(true)}>
+          <FaImage /> Set Image
+        </button>
+      </div>
+
+      <Modal show={showModal} onClose={() => setShowModal(false)}>
+        <ImageUpload evtId={evt.id} imageUploaded={imageUploaded} token={token} />
+      </Modal>
     </Layout>
   );
 };
 
-export default AddEvent;
-
-export async function getServerSideProps({ req }) {
+export async function getServerSideProps({ params: { id }, req }) {
   const { token } = parseCookies(req);
+  const res = await fetch(`${API_URL}/events/${id}`);
+  const evt = await res.json();
 
   return {
     props: {
+      evt,
       token,
     },
   };
 }
+
+export default EditEventPage;
